@@ -20,6 +20,7 @@
  *
  * To understand everything else, start reading main().
  */
+#include <err.h>
 #include <errno.h>
 #include <locale.h>
 #include <signal.h>
@@ -150,6 +151,7 @@ static void attach(Client *c);
 static void attachstack(Client *c);
 static void buttonpress(XEvent *e);
 static void checkotherwm(void);
+void choosetag(const Arg *arg);
 static void cleanup(void);
 static void cleanupmon(Monitor *mon);
 static void clientmessage(XEvent *e);
@@ -183,6 +185,7 @@ static void maprequest(XEvent *e);
 static void monocle(Monitor *m);
 static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
+static void nametag(const Arg *arg);
 static Client *nexttiled(Client *c);
 static void pop(Client *);
 static void propertynotify(XEvent *e);
@@ -261,6 +264,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 };
 static Atom wmatom[WMLast], netatom[NetLast];
 static int running = 1;
+static int restart = 1;
 static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
@@ -1192,6 +1196,112 @@ movemouse(const Arg *arg)
 	}
 }
 
+static void
+spawnpipe(FILE **rf, FILE **wf, const char *cmd, const char * const *args)
+{
+	int wfds[2];
+	int rfds[2];
+
+	if (wf)
+		*wf = NULL;
+	if (rf)
+		*rf = NULL;
+
+	if (pipe(wfds) != 0)
+		/* XXXrcd: shouldn't die. */
+		err(1, "pipe");
+
+	if (pipe(rfds) != 0)
+		/* XXXrcd: shouldn't die. */
+		err(1, "pipe");
+
+	switch (fork()) {
+	case -1:
+		err(1, "fork");
+	case 0:
+		close(wfds[1]);
+		dup2(wfds[0], 0);
+		dup2(rfds[1], 1);
+		close(rfds[0]);	
+		execvp(dmenucmd[0], dmenucmd);
+		_exit(0);
+	default:
+		close(wfds[0]);
+		close(rfds[1]);
+	}
+
+	if (wf)
+		*wf = fdopen(wfds[1], "w");
+	else
+		close(wfds[1]);
+
+	if (rf)
+		*rf = fdopen(rfds[0], "r");
+	else
+		close(rfds[0]);
+
+	return;
+}
+
+void
+nametag(const Arg *arg)
+{
+	char *p, name[MAX_TAGLEN];
+	FILE *f;
+	int i;
+
+	dmenumon[0] = '0' + selmon->num;
+	spawnpipe(&f, NULL, dmenucmd[0], dmenucmd);
+
+	if (!(p = fgets(name, MAX_TAGLEN, f)) && (i = errno) && ferror(f))
+		fprintf(stderr, "dwm: fgets failed: %s\n", strerror(i));
+	if (pclose(f) < 0)
+		fprintf(stderr, "dwm: pclose failed: %s\n", strerror(errno));
+	if(!p)
+		return;
+	if((p = strchr(name, '\n')))
+		*p = '\0';
+
+	for(i = 0; i < LENGTH(tags); i++)
+		if(selmon->tagset[selmon->seltags] & (1 << i))
+			strcpy(tags[i], name);
+	drawbars();
+}
+
+void
+choosetag(const Arg *arg)
+{
+	FILE *rf, *wf;
+	size_t i;
+	char *p, name[MAX_TAGLEN];
+
+	dmenumon[0] = '0' + selmon->num;
+	spawnpipe(&rf, &wf, dmenucmd[0], dmenucmd);
+
+	if (!rf || !wf)
+		/* XXXrcd: hmmm, what to do... */
+		return;
+
+	for (i=0; tags[i][0]; i++)
+		fprintf(wf, "%s\n", tags[i]);
+	if (fclose(wf) < 0)
+		fprintf(stderr, "dwm: flose wfd failed: %s\n", strerror(errno));
+
+	if (!(p = fgets(name, MAX_TAGLEN, rf)) && (i = errno) && ferror(rf))
+		fprintf(stderr, "dwm: fgets failed: %s\n", strerror(i));
+	if (fclose(rf) < 0)
+		fprintf(stderr, "dwm: pclose failed: %s\n", strerror(errno));
+	if (p && (p = strchr(name, '\n')))
+		*p = '\0';
+
+	for (i=0; tags[i][0]; i++)
+		if (!strcmp(name, tags[i]))
+			break;
+
+	Arg a = {.ui = 1 << i};
+	view(&a);
+}
+
 Client *
 nexttiled(Client *c)
 {
@@ -1249,6 +1359,7 @@ void
 quit(const Arg *arg)
 {
 	running = 0;
+	restart = arg->ui;
 }
 
 Monitor *
@@ -1673,27 +1784,43 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, n, h, mw, my, ty;
+	unsigned int n, i, x, y, xstart, ystart, xend, yend, h;
 	Client *c;
+	Client *tmp;
 
-	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+	c = nexttiled(m->clients);
+	if (!c)
+		return;
+
+	x = xstart = m->wx;
+	y = ystart = m->wy;
+	    xend   = m->ww;
+	    yend   = m->wh;
+
+	if (m->nmaster) {
+	    unsigned xsize = (xend - xstart) * m->mfact;
+
+	    resize(c, x, y, xsize - (2*c->bw), yend - (2*c->bw), 0);
+	    x += WIDTH(c);
+	}
+
+	for (c = nexttiled(c->next); c; c = nexttiled(c->next)) {
+		resize(c, x, y, 646, yend, 0);
+		if (x + 2 *  WIDTH(c) > xend)
+			break;
+		x += WIDTH(c);
+	}
+
+	for (n = 0, tmp = c; tmp; tmp = nexttiled(tmp->next), n++)
+		;
 	if (n == 0)
 		return;
 
-	if (n > m->nmaster)
-		mw = m->nmaster ? m->ww * m->mfact : 0;
-	else
-		mw = m->ww;
-	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
-		if (i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
-			resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
-			my += HEIGHT(c);
-		} else {
-			h = (m->wh - ty) / (n - i);
-			resize(c, m->wx + mw, m->wy + ty, m->ww - mw - (2*c->bw), h - (2*c->bw), 0);
-			ty += HEIGHT(c);
-		}
+	for (i=0; c; c = nexttiled(c->next), i++) {
+		h = (yend - y) / (n - i);
+		resize(c, x, y, xend - x - (2*c->bw), h - (2*c->bw), 0);
+		y += HEIGHT(c);
+	}
 }
 
 void
@@ -2145,5 +2272,7 @@ main(int argc, char *argv[])
 	run();
 	cleanup();
 	XCloseDisplay(dpy);
+	if (restart)
+		execl("/u/elric/.dwm", "/u/elric/.dwm", NULL);
 	return EXIT_SUCCESS;
 }
