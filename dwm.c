@@ -45,6 +45,13 @@
 #include "drw.h"
 #include "util.h"
 
+#if 0
+/* tagging */
+#define MAX_TAGS 31
+#define MAX_TAGLEN 16
+char **tags = NULL;
+#endif
+
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
@@ -1255,15 +1262,15 @@ nametag(const Arg *arg)
 
 	if (!(p = fgets(name, MAX_TAGLEN, f)) && (i = errno) && ferror(f))
 		fprintf(stderr, "dwm: fgets failed: %s\n", strerror(i));
-	if (pclose(f) < 0)
-		fprintf(stderr, "dwm: pclose failed: %s\n", strerror(errno));
-	if(!p)
+	if (fclose(f) < 0)
+		fprintf(stderr, "dwm: fclose failed: %s\n", strerror(errno));
+	if (!p)
 		return;
-	if((p = strchr(name, '\n')))
+	if ((p = strchr(name, '\n')))
 		*p = '\0';
 
-	for(i = 0; i < LENGTH(tags); i++)
-		if(selmon->tagset[selmon->seltags] & (1 << i))
+	for (i = 0; i < LENGTH(tags); i++)
+		if (selmon->tagset[selmon->seltags] & (1 << i))
 			strcpy(tags[i], name);
 	drawbars();
 }
@@ -1299,7 +1306,14 @@ choosetag(const Arg *arg)
 			break;
 
 	Arg a = {.ui = 1 << i};
-	view(&a);
+
+	switch (arg->ui) {
+	case 0:		view(&a);	break;
+	case 1:		toggleview(&a);	break;
+	case 2:		tag(&a);	break;
+	case 3:		toggletag(&a);	break;
+	}
+
 }
 
 Client *
@@ -1314,6 +1328,61 @@ pop(Client *c)
 {
 	detach(c);
 	attach(c);
+	focus(c);
+	arrange(c->mon);
+}
+
+void
+stackup(Client *c)
+{
+	Client *oldp = NULL;
+	Client *p;
+	Client *tmp;
+
+	p = c->mon->clients;
+	if (p == c)
+		/* We're already at the top! */
+		return;
+
+	for (;p && p != c && p->next && p->next != c; p=p->next)
+		oldp = p;
+
+	if (!oldp)
+		/* We're almost at the top! */
+		c->mon->clients = c;
+	else
+		oldp->next = c;
+	tmp = c->next;
+	c->next = p;
+	p->next = tmp;
+
+	focus(c);
+	arrange(c->mon);
+}
+
+void
+stackdown(Client *c)
+{
+	Client *p;
+	Client *oldp = NULL;
+	Client *tmp;
+
+	if (!c || !c->next)
+		/* Already at the bottom */
+		return;
+
+	p = c->mon->clients;
+	for (; p && p != c; p=p->next)
+		oldp = p;
+
+	tmp = p->next;
+	p->next = tmp->next;
+	tmp->next = p;
+	if (!oldp)
+		c->mon->clients = tmp;
+	else
+		oldp->next = tmp;
+
 	focus(c);
 	arrange(c->mon);
 }
@@ -1646,6 +1715,14 @@ setup(void)
 
 	/* clean up any zombies immediately */
 	sigchld(0);
+
+#if 0
+	/* setup tags */
+	tags = malloc(sizeof(**tags) + 1);
+	tags[0] = strdup("mutt");
+fprintf(stderr, "tags[0] = %p\n", tags[0]);
+	tags[1] = NULL;
+#endif
 
 	/* init screen */
 	screen = DefaultScreen(dpy);
@@ -2237,6 +2314,7 @@ xerrorstart(Display *dpy, XErrorEvent *ee)
 	return -1;
 }
 
+/* XXXrcd: we make zoom move things in the stack based on args */
 void
 zoom(const Arg *arg)
 {
@@ -2248,7 +2326,11 @@ zoom(const Arg *arg)
 	if (c == nexttiled(selmon->clients))
 		if (!c || !(c = nexttiled(c->next)))
 			return;
-	pop(c);
+	switch (arg->ui) {
+	case -1: 	stackdown(c);	break;
+	case 1:		stackup(c);	break;
+	case 0:		pop(c);		break;
+	}
 }
 
 int
@@ -2273,6 +2355,6 @@ main(int argc, char *argv[])
 	cleanup();
 	XCloseDisplay(dpy);
 	if (restart)
-		execl("/u/elric/.dwm", "/u/elric/.dwm", NULL);
+		execlp("dwm", "dwm", NULL);
 	return EXIT_SUCCESS;
 }
