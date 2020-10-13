@@ -32,6 +32,7 @@ static const Rule rules[] = {
 	/* class      instance    title       tags mask     isfloating   monitor */
 	{ "xterm",    NULL,       NULL,       0,            0,		-1 },
 	{ "Gimp",     NULL,       NULL,       0,            1,		-1 },
+	{ "XVroot",   NULL,       NULL,       0,            1,		-1 },
 	{ "Firefox",  NULL,       NULL,       1 << 8,       0,		-1 },
 };
 
@@ -76,14 +77,14 @@ static Key keys[] = {
 	{ MODKEY|ShiftMask,     XK_Return, spawn,          {.v = termcmd}},
 	{ MODKEY,               XK_b,      togglebar,      {0} },
 	{ MODKEY,               XK_j,      focusstack,     {.i = +1 } },
-	{ MODKEY|ShiftMask,     XK_j,      zoom,	   {.i = 01 } },
+	{ MODKEY|ShiftMask,     XK_j,      zoom,	   {.i = +1 } },
 	{ MODKEY,               XK_k,      focusstack,     {.i = -1 } },
-	{ MODKEY|ShiftMask,     XK_k,      zoom,	   {.i = +1 } },
+	{ MODKEY|ShiftMask,     XK_k,      zoom,	   {.i = -1 } },
 	{ MODKEY,               XK_i,      incnmaster,     {.i = +1 } },
 	{ MODKEY,               XK_d,      incnmaster,     {.i = -1 } },
 	{ MODKEY,               XK_h,      setmfact,       {.f = -0.02} },
 	{ MODKEY,               XK_l,      setmfact,       {.f = +0.02} },
-	{ MODKEY,               XK_Return, zoom,           {0} },
+	{ MODKEY,               XK_Return, zoom,           {.i = 0} },
 	{ MODKEY,               XK_Tab,    view,           {0} },
 	{ MODKEY|ShiftMask,     XK_c,      killclient,     {0} },
 	{ MODKEY,               XK_t,      setlayout,      {.v = &layouts[0]} },

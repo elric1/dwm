@@ -155,6 +155,7 @@ static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interac
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
+static void attachafter(Client *c, Client *);
 static void attachstack(Client *c);
 static void buttonpress(XEvent *e);
 static void checkotherwm(void);
@@ -411,10 +412,25 @@ arrangemon(Monitor *m)
 }
 
 void
+attachafter(Client *c, Client *after)
+{
+	Client *tmp;
+
+	if (!after) {
+		c->next = c->mon->clients;
+		c->mon->clients = c;
+		return;
+	}
+
+	tmp = after->next;
+	after->next = c;
+	c->next = tmp;
+}
+
+void
 attach(Client *c)
 {
-	c->next = c->mon->clients;
-	c->mon->clients = c;
+	attachafter(c, NULL);
 }
 
 void
@@ -1317,6 +1333,18 @@ choosetag(const Arg *arg)
 }
 
 Client *
+prevtiled(Client *c)
+{
+	Client *tmp;
+	Client *prev = NULL;
+
+	for (tmp = c->mon->clients; tmp && tmp != c; tmp = tmp->next)
+		if (!tmp->isfloating && ISVISIBLE(tmp))
+			prev = tmp;
+	return prev;
+}
+
+Client *
 nexttiled(Client *c)
 {
 	for (; c && (c->isfloating || !ISVISIBLE(c)); c = c->next);
@@ -1335,27 +1363,15 @@ pop(Client *c)
 void
 stackup(Client *c)
 {
-	Client *oldp = NULL;
-	Client *p;
-	Client *tmp;
+	Client *prev;
 
-	p = c->mon->clients;
-	if (p == c)
-		/* We're already at the top! */
+	prev = prevtiled(c);
+	if (!prev)
+		/* XXXrcd: already at the top! */
 		return;
-
-	for (;p && p != c && p->next && p->next != c; p=p->next)
-		oldp = p;
-
-	if (!oldp)
-		/* We're almost at the top! */
-		c->mon->clients = c;
-	else
-		oldp->next = c;
-	tmp = c->next;
-	c->next = p;
-	p->next = tmp;
-
+	prev = prevtiled(prev);
+	detach(c);
+	attachafter(c, prev);
 	focus(c);
 	arrange(c->mon);
 }
@@ -1363,26 +1379,14 @@ stackup(Client *c)
 void
 stackdown(Client *c)
 {
-	Client *p;
-	Client *oldp = NULL;
-	Client *tmp;
+	Client *next;
 
-	if (!c || !c->next)
-		/* Already at the bottom */
+	next = nexttiled(c->next);
+	if (!next)
+		/* XXXrcd: already last! */
 		return;
-
-	p = c->mon->clients;
-	for (; p && p != c; p=p->next)
-		oldp = p;
-
-	tmp = p->next;
-	p->next = tmp->next;
-	tmp->next = p;
-	if (!oldp)
-		c->mon->clients = tmp;
-	else
-		oldp->next = tmp;
-
+	detach(c);
+	attachafter(c, next);
 	focus(c);
 	arrange(c->mon);
 }
@@ -1720,7 +1724,6 @@ setup(void)
 	/* setup tags */
 	tags = malloc(sizeof(**tags) + 1);
 	tags[0] = strdup("mutt");
-fprintf(stderr, "tags[0] = %p\n", tags[0]);
 	tags[1] = NULL;
 #endif
 
@@ -2323,13 +2326,15 @@ zoom(const Arg *arg)
 	if (!selmon->lt[selmon->sellt]->arrange
 	|| (selmon->sel && selmon->sel->isfloating))
 		return;
-	if (c == nexttiled(selmon->clients))
-		if (!c || !(c = nexttiled(c->next)))
-			return;
-	switch (arg->ui) {
-	case -1: 	stackdown(c);	break;
-	case 1:		stackup(c);	break;
-	case 0:		pop(c);		break;
+
+	switch (arg->i) {
+	case 0:	if (c == nexttiled(selmon->clients))
+			if (!c || !(c = nexttiled(c->next)))
+				return;
+		pop(c);
+		break;
+	case -1:	stackup(c);	break;
+	case 1:		stackdown(c);	break;
 	}
 }
 
