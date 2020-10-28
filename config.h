@@ -29,11 +29,11 @@ static const Rule rules[] = {
 	 *	WM_CLASS(STRING) = instance, class
 	 *	WM_NAME(STRING) = title
 	 */
-	/* class      instance    title       tags mask     isfloating   monitor */
-	{ "xterm",    NULL,       NULL,       0,            0,		-1 },
-	{ "Gimp",     NULL,       NULL,       0,            1,		-1 },
-	{ "XVroot",   NULL,       NULL,       0,            1,		-1 },
-	{ "Firefox",  NULL,       NULL,       1 << 8,       0,		-1 },
+	/* class      inst    title   tagmask isfloat monitor opacity */
+	{ "XTerm",    NULL,   NULL,   0,      0,      -1,     0.85},
+	{ "Gimp",     NULL,   NULL,   0,      1,      -1,     1.00},
+	{ "XVroot",   NULL,   NULL,   0,      1,      -1,     1.00},
+	{ "Firefox",  NULL,   NULL,   1 << 8, 0,      -1,     1.00},
 };
 
 /* layout(s) */

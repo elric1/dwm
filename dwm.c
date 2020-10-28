@@ -147,6 +147,7 @@ typedef struct {
 	unsigned int tags;
 	int isfloating;
 	int monitor;
+	double opacity;
 } Rule;
 
 /* function declarations */
@@ -287,6 +288,8 @@ static Window root, wmcheckwin;
 struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 
 /* function implementations */
+#define OPAQUE  0xffffffff
+#define OPACITY "_NET_WM_WINDOW_OPACITY"
 void
 applyrules(Client *c)
 {
@@ -295,6 +298,7 @@ applyrules(Client *c)
 	const Rule *r;
 	Monitor *m;
 	XClassHint ch = { NULL, NULL };
+	unsigned opacity;
 
 	/* rule matching */
 	c->isfloating = 0;
@@ -314,6 +318,13 @@ applyrules(Client *c)
 			for (m = mons; m && m->num != r->monitor; m = m->next);
 			if (m)
 				c->mon = m;
+			opacity = (unsigned int) (r->opacity * OPAQUE);
+			fprintf(stderr, "Applying opacity %lf -> %u\n",
+			    r->opacity, opacity);
+			XChangeProperty(dpy, c->win,
+			    XInternAtom(dpy, OPACITY, False),
+			    XA_CARDINAL, 32, PropModeReplace,
+			    (unsigned char *) &opacity, 1L);
 		}
 	}
 	if (ch.res_class)
