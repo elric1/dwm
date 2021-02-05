@@ -64,6 +64,10 @@ char **tags = NULL;
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
+#define FADE_BYTE(X, s)		( ((X >> (s+1)) & 0x7f) << s )
+#define FADE_COLOR(X)		( FADE_BYTE((X), 16) |	\
+				  FADE_BYTE((X),  8) |	\
+				  FADE_BYTE((X),  0) )
 
 #define SYSTEM_TRAY_REQUEST_DOCK    0
 
@@ -1216,7 +1220,7 @@ manage(Window w, XWindowAttributes *wa)
 
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
-	XSetWindowBorder(dpy, w, c->vmcolor);
+	XSetWindowBorder(dpy, w, FADE_COLOR(c->vmcolor));
 	configure(c); /* propagates border_width, if size doesn't change */
 	updatewindowtype(c);
 	updatesizehints(c);
@@ -2241,7 +2245,7 @@ unfocus(Client *c, int setfocus)
 	if (!c)
 		return;
 	grabbuttons(c, 0);
-	XSetWindowBorder(dpy, c->win, c->vmcolor);
+	XSetWindowBorder(dpy, c->win, FADE_COLOR(c->vmcolor));
 	if (setfocus) {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
 		XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
