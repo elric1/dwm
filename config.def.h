@@ -11,23 +11,27 @@ static const int showbar            = 1;        /* 0 means no bar */
 static const int topbar             = 1;        /* 0 means bottom bar */
 static const char *fonts[]          = { "monospace:size=16" };
 static const char dmenufont[]       = "monospace:size=32";
+static const char col_dom0[]        = "#3874D8";
+static const char col_white[]       = "#FFFFFF";
 static const char col_gray1[]       = "#222222";
 static const char col_gray2[]       = "#444444";
 static const char col_gray3[]       = "#bbbbbb";
 static const char col_gray4[]       = "#eeeeee";
 static const char col_cyan[]        = "#005577";
 static const char col_red[]         = "#aa0000";
-static const char *colors[][3]      = {
-	/*               fg         bg         border   */
-	[SchemeNorm] = { col_gray3, col_gray1, col_gray2 },
-	[SchemeSel]  = { col_gray4, col_cyan,  col_red   },
+/* Dom0 Colors, tagbar and status bar */
+static const char *colors[][2]      = {
+	/*               fg         bg         */
+	[SchemeNorm] = { col_gray3, col_gray1 },
+	[SchemeSel]  = { col_white, col_dom0  },
 };
 
 /* tagging */
 #define MAX_TAGLEN	16
 static char tags[][MAX_TAGLEN]
-	= { "1", "2", "3", "4", "5", "6", "7", "8", "9", "" };
+	= { "1", "2", "3", "4", "5", "6", "7", "8", "Q", "" };
 
+#define QVMM "Qubes VM Manager"
 static const Rule rules[] = {
 	/* xprop(1):
 	 *	WM_CLASS(STRING) = instance, class
@@ -38,6 +42,7 @@ static const Rule rules[] = {
 	{ "Gimp",     NULL,   NULL,   0,      1,      -1,     1.00},
 	{ "XVroot",   NULL,   NULL,   0,      1,      -1,     1.00},
 	{ "Firefox",  NULL,   NULL,   1 << 8, 0,      -1,     1.00},
+	{ NULL,       NULL,   QVMM,   1 << 8, 1,      -1,     1.00},
 };
 
 /* layout(s) */
@@ -71,13 +76,22 @@ static const Layout layouts[] = {
 /* commands */
 static char dmenumon[2] = "0"; /* component of dmenucmd, changed in spawn() */
 static const char *dmenucmd[]    = { "dmenu", DMENU_FLAGS };
-static const char *dmenuruncmd[] = { "dmenu_run", DMENU_FLAGS };
-static const char *lockcmd[]     = { "xautolock", "-locknow", NULL };
+static const char *lockcmd[]     = { "xscreensaver-command", "-lock", NULL };
 static const char *termcmd[]     = { "xterm", NULL };
+
+static const char *dmenu_dom0[] = { "dmenu_run", "dom0", "-m", dmenumon,
+				    "-fn", dmenufont, "-nb", col_gray1,
+				    "-nf", col_gray3, "-sb", col_dom0,
+				    "-sf", col_white, NULL };
+static const char *dmenu_vms[] = { "dmenu_run", "vms", "-a", "-m", dmenumon,
+				   "-fn", dmenufont, "-nb", col_gray1,
+				   "-nf", col_gray3, "-sb", col_dom0,
+				   "-sf", col_white, NULL };
 
 static Key keys[] = {
 	/* modifier                     key        function        argument */
-	{ MODKEY,               XK_p,      spawn,          {.v = dmenuruncmd}},
+	{ MODKEY,               XK_p,      spawn,          {.v = dmenu_dom0}},
+	{ MODKEY|ShiftMask,     XK_p,      spawn,          {.v = dmenu_vms}},
 	{ MODKEY|ShiftMask,     XK_Return, spawn,          {.v = termcmd}},
 	{ MODKEY,               XK_b,      togglebar,      {0} },
 	{ MODKEY,               XK_j,      focusstack,     {.i = +1 } },
