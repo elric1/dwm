@@ -2160,7 +2160,7 @@ tile(Monitor *m)
 	}
 
 	for (c = nexttiled(c->next); c; c = nexttiled(c->next)) {
-		resize(c, x, y, 646, yend, 0);
+		resize(c, x, y, 646, yend - (2*c->bw), 0);
 		if (x + 2 *  WIDTH(c) > xend)
 			break;
 		x += WIDTH(c);
